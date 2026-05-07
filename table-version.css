@@ -127,6 +127,7 @@ tbody td {
   border-top: 1px solid var(--line);
   border-right: 1px solid var(--line);
   vertical-align: top;
+  background: white;
 }
 
 tbody td:last-child,
@@ -139,13 +140,15 @@ thead th:last-child {
   width: 100%;
   min-height: 46px;
   border: 0;
-  background: white;
+  background: transparent;
   padding: 8px 8px 6px;
   text-align: left;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .cell-field {
-  background: white;
+  background: transparent;
 }
 
 .cell-field:focus,
@@ -172,6 +175,7 @@ thead th:last-child {
   white-space: pre-wrap;
   line-height: 1.2;
   font-size: 0.88rem;
+  color: var(--text);
 }
 
 .error-text {
@@ -185,9 +189,21 @@ thead th:last-child {
   font-size: 0.82rem;
 }
 
-.first-entry-row .cell-field,
-.first-entry-row .cell-trigger {
+.first-entry-row td {
   background: var(--accent-soft);
+}
+
+.cell-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inline-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 7px 10px;
+  font-size: 0.8rem;
 }
 
 .modal-shell {

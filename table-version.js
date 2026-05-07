@@ -19,12 +19,14 @@ let googleMapsPromise;
 let currentMap = null;
 let currentMarker = null;
 let currentGeocoder = null;
+let addressSearchTimer = null;
 
 function buildRow(index) {
   return {
     id: `row-${index}`,
     activityType: "",
     activityName: "",
+    locationMode: "",
     location: {
       address: "",
       lat: "",
@@ -59,11 +61,6 @@ function escapeHtml(value) {
 
 function getRow(rowId) {
   return state.rows.find((row) => row.id === rowId);
-}
-
-function getCategorySummary(item) {
-  if (!item.total && !item.female && !item.male) return "";
-  return `Total: ${item.total || 0}\nF: ${item.female || 0}  M: ${item.male || 0}`;
 }
 
 function isCategoryValid(item) {
@@ -110,19 +107,9 @@ function renderLogin() {
 function renderApp() {
   return `
     <div class="page">
-      <div class="topbar">
-        <div>
-          <h1>Activity Data collection</h1>
-          <div class="subtle">Single-table version with pop-up editing for location and beneficiary breakdowns.</div>
-        </div>
-        <div class="mini-card">
-          <div class="subtle">Rows</div>
-          <strong>${state.rows.length}</strong>
-        </div>
-      </div>
       <div class="card">
         <div class="toolbar">
-          <div class="subtle">Hover or click Activity Location, Direct Beneficiaries, Indirect Beneficiaries, or Other Beneficiaries to edit details.</div>
+          <div class="subtle">Click Activity Location, Direct Beneficiaries, Indirect Beneficiaries, or Other Beneficiaries to edit details.</div>
           <div class="toolbar-actions">
             <button class="ghost-btn" data-action="add-row">Add row</button>
             <button class="btn" data-action="download-csv">Download CSV</button>
@@ -157,6 +144,7 @@ function renderApp() {
 
 function renderRow(row) {
   const rowNumber = Number(row.id.replace("row-", ""));
+  const previousRow = rowNumber > 1 ? getRow(`row-${rowNumber - 1}`) : null;
   return `
     <tr class="${rowNumber === 1 ? "first-entry-row" : ""}">
       <td>
@@ -169,29 +157,49 @@ function renderRow(row) {
         <input class="cell-field" value="${escapeHtml(row.activityName)}" placeholder="Enter Activity Name" data-action="set-activity-name" data-row-id="${row.id}" />
       </td>
       <td>
-        <button class="cell-trigger" data-action="open-location" data-row-id="${row.id}">
-          <span class="cell-label">Enter Activity Location</span>
-          <span class="cell-value">${escapeHtml(row.location.address || "")}</span>
-        </button>
+        ${
+          rowNumber === 1
+            ? `<button class="cell-trigger" data-action="open-location" data-row-id="${row.id}">
+                <span class="cell-label">Enter Activity Location</span>
+                <span class="cell-value">${escapeHtml(row.location.address || "")}</span>
+              </button>`
+            : `<div class="cell-trigger cell-choice">
+                <span class="cell-label">Use location from row above <input type="checkbox" data-action="set-location-mode" data-row-id="${row.id}" data-mode="above" ${
+                  row.locationMode === "above" ? "checked" : ""
+                } /> or enter new <input type="checkbox" data-action="set-location-mode" data-row-id="${row.id}" data-mode="new" ${
+                  row.locationMode === "new" ? "checked" : ""
+                } /></span>
+                <span class="cell-value">${
+                  row.locationMode === "above"
+                    ? escapeHtml(previousRow?.location.address || "")
+                    : escapeHtml(row.location.address || "")
+                }</span>
+                ${
+                  row.locationMode === "new"
+                    ? `<button class="ghost-btn inline-btn" data-action="open-location" data-row-id="${row.id}">Set location</button>`
+                    : ""
+                }
+              </div>`
+        }
       </td>
       <td>
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="direct">
           <span class="cell-label">Enter Direct Beneficiaries</span>
-          <span class="cell-value">${escapeHtml(getCategorySummary(row.direct))}</span>
+          <span class="cell-value"></span>
         </button>
       </td>
       <td>${renderUploadCell(row, "direct")}</td>
       <td>
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="indirect">
           <span class="cell-label">Enter Indirect Beneficiaries</span>
-          <span class="cell-value">${escapeHtml(getCategorySummary(row.indirect))}</span>
+          <span class="cell-value"></span>
         </button>
       </td>
       <td>${renderUploadCell(row, "indirect")}</td>
       <td>
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="other">
           <span class="cell-label">Enter Other Beneficiaries</span>
-          <span class="cell-value">${escapeHtml(getCategorySummary(row.other))}</span>
+          <span class="cell-value"></span>
         </button>
       </td>
       <td>${renderUploadCell(row, "other")}</td>
@@ -391,6 +399,33 @@ function initializeLocationModal() {
     });
 }
 
+function geocodeModalAddress(rowId) {
+  const address = getModalAddress();
+  if (!currentGeocoder || !address) return;
+
+  currentGeocoder.geocode({ address }, (results, status) => {
+    if (status === "OK" && results && results[0] && results[0].geometry) {
+      const lat = results[0].geometry.location.lat();
+      const lng = results[0].geometry.location.lng();
+      updateRow(rowId, (next) => {
+        next.location.address = results[0].formatted_address || address;
+        next.location.lat = lat.toFixed(6);
+        next.location.lng = lng.toFixed(6);
+        return next;
+      });
+      if (currentMap && currentMarker) {
+        currentMap.panTo({ lat, lng });
+        currentMap.setZoom(14);
+        currentMarker.setPosition({ lat, lng });
+      }
+      state.mapMessage = "";
+    } else {
+      state.mapMessage = "Google could not place that address automatically. Click the map to pin it instead.";
+    }
+    render();
+  });
+}
+
 function reverseGeocodeRow(rowId, lat, lng) {
   updateRow(rowId, (next) => {
     next.location.lat = lat.toFixed(6);
@@ -541,6 +576,21 @@ function handleAction(event) {
     return;
   }
 
+  if (action === "set-location-mode") {
+    const rowId = target.dataset.rowId;
+    const rowNumber = Number(rowId.replace("row-", ""));
+    updateRow(rowId, (next) => {
+      next.locationMode = target.checked ? target.dataset.mode : "";
+      if (target.checked && target.dataset.mode === "above" && rowNumber > 1) {
+        const previousRow = getRow(`row-${rowNumber - 1}`);
+        next.location = clone(previousRow?.location || next.location);
+      }
+      return next;
+    });
+    render();
+    return;
+  }
+
   if (action === "save-location-search") {
     const rowId = target.dataset.rowId;
     const address = getModalAddress();
@@ -550,27 +600,7 @@ function handleAction(event) {
     });
     const row = getRow(rowId);
     if (currentGeocoder && address) {
-      currentGeocoder.geocode({ address }, (results, status) => {
-        if (status === "OK" && results && results[0] && results[0].geometry) {
-          const lat = results[0].geometry.location.lat();
-          const lng = results[0].geometry.location.lng();
-          updateRow(rowId, (next) => {
-            next.location.address = results[0].formatted_address || address;
-            next.location.lat = lat.toFixed(6);
-            next.location.lng = lng.toFixed(6);
-            return next;
-          });
-          if (currentMap && currentMarker) {
-            currentMap.panTo({ lat, lng });
-            currentMap.setZoom(14);
-            currentMarker.setPosition({ lat, lng });
-          }
-          state.mapMessage = "";
-        } else {
-          state.mapMessage = "Google could not place that address automatically. Click the map to pin it instead.";
-        }
-        render();
-      });
+      geocodeModalAddress(rowId);
       return;
     }
     state.mapMessage = row.location.lat && row.location.lng ? "" : "Saved address. Click the map to store coordinates.";
@@ -596,6 +626,20 @@ function handleInput(event) {
       next.activityName = target.value;
       return next;
     });
+    return;
+  }
+
+  if (action === "modal-address") {
+    updateRow(state.activeModal.rowId, (next) => {
+      next.location.address = target.value;
+      return next;
+    });
+    if (addressSearchTimer) window.clearTimeout(addressSearchTimer);
+    addressSearchTimer = window.setTimeout(() => {
+      if (state.activeModal?.type === "location") {
+        geocodeModalAddress(state.activeModal.rowId);
+      }
+    }, 700);
     return;
   }
 
