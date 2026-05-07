@@ -19,7 +19,6 @@ let googleMapsPromise;
 let currentMap = null;
 let currentMarker = null;
 let currentGeocoder = null;
-let addressSearchTimer = null;
 
 function buildRow(index) {
   return {
@@ -145,6 +144,9 @@ function renderApp() {
 function renderRow(row) {
   const rowNumber = Number(row.id.replace("row-", ""));
   const previousRow = rowNumber > 1 ? getRow(`row-${rowNumber - 1}`) : null;
+  const directSummary = isCategoryValid(row.direct) && row.direct.total ? row.direct.total : "";
+  const indirectSummary = isCategoryValid(row.indirect) && row.indirect.total ? row.indirect.total : "";
+  const otherSummary = isCategoryValid(row.other) && row.other.total ? row.other.total : "";
   return `
     <tr class="${rowNumber === 1 ? "first-entry-row" : ""}">
       <td>
@@ -185,21 +187,21 @@ function renderRow(row) {
       <td>
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="direct">
           <span class="cell-label">Enter Direct Beneficiaries</span>
-          <span class="cell-value"></span>
+          <span class="cell-value">${escapeHtml(directSummary)}</span>
         </button>
       </td>
       <td>${renderUploadCell(row, "direct")}</td>
       <td>
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="indirect">
           <span class="cell-label">Enter Indirect Beneficiaries</span>
-          <span class="cell-value"></span>
+          <span class="cell-value">${escapeHtml(indirectSummary)}</span>
         </button>
       </td>
       <td>${renderUploadCell(row, "indirect")}</td>
       <td>
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="other">
           <span class="cell-label">Enter Other Beneficiaries</span>
-          <span class="cell-value"></span>
+          <span class="cell-value">${escapeHtml(otherSummary)}</span>
         </button>
       </td>
       <td>${renderUploadCell(row, "other")}</td>
@@ -634,12 +636,6 @@ function handleInput(event) {
       next.location.address = target.value;
       return next;
     });
-    if (addressSearchTimer) window.clearTimeout(addressSearchTimer);
-    addressSearchTimer = window.setTimeout(() => {
-      if (state.activeModal?.type === "location") {
-        geocodeModalAddress(state.activeModal.rowId);
-      }
-    }, 700);
     return;
   }
 
