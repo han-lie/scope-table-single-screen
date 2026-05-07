@@ -1,0 +1,336 @@
+:root {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --text: #18212d;
+  --muted: #6d7784;
+  --line: #c8d2e2;
+  --field: #eef6ff;
+  --accent: #285f93;
+  --accent-soft: #eaf3ff;
+  --danger: #a63d3d;
+  --shadow: 0 20px 50px rgba(24, 33, 45, 0.12);
+  --radius: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.page {
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 2.2rem;
+  letter-spacing: -0.04em;
+}
+
+.subtle {
+  color: var(--muted);
+}
+
+.card,
+.login-card,
+.modal-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.card {
+  padding: 18px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn,
+.ghost-btn {
+  border-radius: 12px;
+  border: 1px solid transparent;
+  padding: 11px 15px;
+  cursor: pointer;
+}
+
+.btn {
+  background: var(--accent);
+  color: white;
+}
+
+.ghost-btn {
+  background: white;
+  color: var(--text);
+  border-color: var(--line);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+table {
+  width: 100%;
+  min-width: 1450px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+thead th {
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--line);
+  background: white;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.95rem;
+}
+
+tbody td {
+  padding: 0;
+  border-top: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  vertical-align: top;
+}
+
+tbody td:last-child,
+thead th:last-child {
+  border-right: 0;
+}
+
+.cell-field,
+.cell-trigger {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  background: white;
+  padding: 8px 8px 6px;
+  text-align: left;
+}
+
+.cell-field {
+  background: white;
+}
+
+.cell-field:focus,
+.cell-trigger:focus,
+.modal-card input:focus,
+.modal-card select:focus,
+.login-card input:focus {
+  outline: 2px solid rgba(40, 95, 147, 0.18);
+}
+
+.cell-trigger {
+  cursor: pointer;
+}
+
+.cell-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 2px;
+}
+
+.cell-value {
+  display: block;
+  white-space: pre-wrap;
+  line-height: 1.2;
+  font-size: 0.88rem;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 0.82rem;
+  margin-top: 4px;
+}
+
+.status-ok {
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.first-entry-row .cell-field,
+.first-entry-row .cell-trigger {
+  background: var(--accent-soft);
+}
+
+.modal-shell {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 33, 45, 0.26);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 30;
+}
+
+.modal-card {
+  width: min(980px, 88vw);
+  max-height: 82vh;
+  overflow: auto;
+  padding: 20px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.stack,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field);
+  padding: 12px 14px;
+}
+
+.mini-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+  padding: 12px;
+}
+
+.map-box {
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  position: relative;
+  background: white;
+}
+
+.map-surface,
+.map-fallback {
+  width: 100%;
+  height: 420px;
+}
+
+.map-fallback {
+  position: relative;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.25) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.25) 1px, transparent 1px),
+    linear-gradient(180deg, #d9e8df 0%, #bcd3c3 100%);
+  background-size: 28px 28px, 28px 28px, cover;
+}
+
+.fallback-pin {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  background: #b13232;
+  transform: rotate(-45deg) translate(-50%, -50%);
+}
+
+.fallback-pin::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  top: 5px;
+  left: 5px;
+  background: white;
+  border-radius: 50%;
+}
+
+.map-note {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
+}
+
+.bene-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.login-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 80px 20px;
+}
+
+.login-card {
+  width: min(460px, 100%);
+  padding: 24px;
+}
+
+.login-card h2 {
+  margin: 0 0 10px;
+}
+
+@media (max-width: 920px) {
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bene-grid {
+    grid-template-columns: 1fr;
+  }
+}
