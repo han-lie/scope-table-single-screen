@@ -4,10 +4,11 @@ const LOGIN_STORAGE_KEY = "activity-options-table-authenticated";
 const state = {
   isAuthenticated: !window.APP_CONFIG?.appPassword,
   loginError: "",
-  rows: Array.from({ length: 6 }, (_, index) => buildRow(index + 1)),
+  rows: Array.from({ length: 8 }, (_, index) => buildRow(index + 1)),
   activeModal: null,
   mapDebug: "",
   mapMessage: "",
+  numericError: "",
 };
 
 if (window.APP_CONFIG?.appPassword && window.sessionStorage.getItem(LOGIN_STORAGE_KEY) === "true") {
@@ -39,7 +40,6 @@ function buildRow(index) {
 
 function category() {
   return {
-    total: "",
     female: "",
     male: "",
     uploads: [],
@@ -62,21 +62,85 @@ function getRow(rowId) {
   return state.rows.find((row) => row.id === rowId);
 }
 
+function categoryTotal(item) {
+  if (hasNonNumeric(item.female) || hasNonNumeric(item.male)) return "";
+  if (item.female === "" && item.male === "") return "";
+  return (Number(item.female) || 0) + (Number(item.male) || 0);
+}
+
+function hasNonNumeric(value) {
+  return value !== "" && !/^\d+$/.test(String(value));
+}
+
 function isCategoryValid(item) {
-  return (Number(item.total) || 0) === (Number(item.female) || 0) + (Number(item.male) || 0);
+  return !hasNonNumeric(item.female) && !hasNonNumeric(item.male);
 }
 
 function allRowsValid() {
   return state.rows.every((row) => ["direct", "indirect", "other"].every((key) => isCategoryValid(row[key])));
 }
 
+function rowLocationComplete(row, rowIndex) {
+  if (rowIndex === 0) return Boolean(row.location.address);
+  if (row.locationMode === "above") return true;
+  if (row.locationMode === "new") return Boolean(row.location.address);
+  return false;
+}
+
+function isRowComplete(row, rowIndex) {
+  return Boolean(
+    row.activityType &&
+      row.activityName.trim() &&
+      rowLocationComplete(row, rowIndex) &&
+      categoryTotal(row.direct) !== "" &&
+      categoryTotal(row.indirect) !== "" &&
+      categoryTotal(row.other) !== "" &&
+      row.direct.uploads.length &&
+      row.indirect.uploads.length &&
+      row.other.uploads.length
+  );
+}
+
 function updateRow(rowId, updater) {
   state.rows = state.rows.map((row) => (row.id === rowId ? updater(clone(row)) : row));
+  ensureTrailingBlankRow();
+}
+
+function isRowBlank(row) {
+  return !row.activityType &&
+    !row.activityName &&
+    !row.location.address &&
+    !row.location.lat &&
+    !row.location.lng &&
+    !row.direct.female &&
+    !row.direct.male &&
+    !row.indirect.female &&
+    !row.indirect.male &&
+    !row.other.female &&
+    !row.other.male &&
+    !row.direct.uploads.length &&
+    !row.indirect.uploads.length &&
+    !row.other.uploads.length;
+}
+
+function ensureTrailingBlankRow() {
+  const lastRow = state.rows[state.rows.length - 1];
+  if (lastRow && !isRowBlank(lastRow)) {
+    state.rows.push(buildRow(state.rows.length + 1));
+  }
 }
 
 function render() {
   root.innerHTML = state.isAuthenticated ? renderApp() : renderLogin();
+  syncAutoTextareas();
   if (state.activeModal?.type === "location") initializeLocationModal();
+}
+
+function syncAutoTextareas() {
+  root.querySelectorAll(".cell-textarea").forEach((element) => {
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
+  });
 }
 
 function renderLogin() {
@@ -108,28 +172,17 @@ function renderApp() {
     <div class="page">
       <div class="card">
         <div class="toolbar">
-          <div class="subtle">Click Activity Location, Direct Beneficiaries, Indirect Beneficiaries, or Other Beneficiaries to edit details.</div>
+          <div>
+            <div class="hero-line">Bulk data entry of Activities</div>
+            <div class="hero-subline">Click on each cell to enter data</div>
+          </div>
           <div class="toolbar-actions">
-            <button class="ghost-btn" data-action="add-row">Add row</button>
             <button class="btn" data-action="download-csv">Download CSV</button>
           </div>
         </div>
-        ${!allRowsValid() ? `<div class="error-text" style="margin-bottom: 12px;">Each beneficiary total must equal Female + Male before export.</div>` : ""}
+        ${!allRowsValid() ? `<div class="error-text" style="margin-bottom: 12px;">numbers only</div>` : ""}
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th style="width: 10%;">Activity Type</th>
-                <th style="width: 28%;">Activity Name</th>
-                <th style="width: 28%;">Activity Location</th>
-                <th style="width: 10%;">Direct Beneficiaries</th>
-                <th style="width: 10%;">Upload Direct Documentation</th>
-                <th style="width: 10%;">Indirect Beneficiaries</th>
-                <th style="width: 10%;">Upload Indirect Documentation</th>
-                <th style="width: 10%;">Other Beneficiaries</th>
-                <th style="width: 10%;">Upload Other Documentation</th>
-              </tr>
-            </thead>
             <tbody>
               ${state.rows.map(renderRow).join("")}
             </tbody>
@@ -141,70 +194,77 @@ function renderApp() {
   `;
 }
 
+function getActiveRowId() {
+  const firstIncompleteIndex = state.rows.findIndex((row, index) => !isRowComplete(row, index));
+  return firstIncompleteIndex >= 0 ? state.rows[firstIncompleteIndex].id : state.rows[state.rows.length - 1]?.id;
+}
+
 function renderRow(row) {
+  const activeRowId = getActiveRowId();
   const rowNumber = Number(row.id.replace("row-", ""));
   const previousRow = rowNumber > 1 ? getRow(`row-${rowNumber - 1}`) : null;
-  const directSummary = isCategoryValid(row.direct) && row.direct.total ? row.direct.total : "";
-  const indirectSummary = isCategoryValid(row.indirect) && row.indirect.total ? row.indirect.total : "";
-  const otherSummary = isCategoryValid(row.other) && row.other.total ? row.other.total : "";
+  const directSummary = isCategoryValid(row.direct) && categoryTotal(row.direct) !== "" ? categoryTotal(row.direct) : "";
+  const indirectSummary = isCategoryValid(row.indirect) && categoryTotal(row.indirect) !== "" ? categoryTotal(row.indirect) : "";
+  const otherSummary = isCategoryValid(row.other) && categoryTotal(row.other) !== "" ? categoryTotal(row.other) : "";
   return `
-    <tr class="${rowNumber === 1 ? "first-entry-row" : ""}">
-      <td>
-        <select class="cell-field" data-action="set-activity-type" data-row-id="${row.id}">
-          <option value="">Enter Activity Type</option>
-          ${ACTIVITY_TYPES.map((type) => `<option value="${escapeHtml(type)}" ${row.activityType === type ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}
-        </select>
+    <tr class="${row.id === activeRowId ? "active-entry-row" : ""}">
+      <td style="width:12%;">
+        <div class="cell-trigger cell-entry">
+          <span class="cell-label">Choose<br>Activity Type</span>
+          <select class="cell-input ${row.activityType ? "filled-value" : ""}" data-action="set-activity-type" data-row-id="${row.id}">
+            <option value=""></option>
+            ${ACTIVITY_TYPES.map((type) => `<option value="${escapeHtml(type)}" ${row.activityType === type ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}
+          </select>
+        </div>
       </td>
-      <td>
-        <input class="cell-field" value="${escapeHtml(row.activityName)}" placeholder="Enter Activity Name" data-action="set-activity-name" data-row-id="${row.id}" />
+      <td style="width:29.4%;">
+        <div class="cell-trigger cell-entry">
+          <span class="cell-label">Enter Activity Name</span>
+          <textarea class="cell-input cell-textarea ${row.activityName ? "filled-value" : ""}" data-action="set-activity-name" data-row-id="${row.id}">${escapeHtml(row.activityName)}</textarea>
+        </div>
       </td>
-      <td>
+      <td style="width:29.4%;">
         ${
           rowNumber === 1
             ? `<button class="cell-trigger" data-action="open-location" data-row-id="${row.id}">
                 <span class="cell-label">Enter Activity Location</span>
-                <span class="cell-value">${escapeHtml(row.location.address || "")}</span>
+                <span class="cell-value filled-value">${escapeHtml(row.location.address || "")}</span>
               </button>`
             : `<div class="cell-trigger cell-choice">
-                <span class="cell-label">Use location from row above <input type="checkbox" data-action="set-location-mode" data-row-id="${row.id}" data-mode="above" ${
+                <span class="cell-label choice-line">Use location from row above <input type="checkbox" data-action="set-location-mode" data-row-id="${row.id}" data-mode="above" ${
                   row.locationMode === "above" ? "checked" : ""
-                } /> or enter new <input type="checkbox" data-action="set-location-mode" data-row-id="${row.id}" data-mode="new" ${
+                } /><br>or enter new <input type="checkbox" data-action="set-location-mode" data-row-id="${row.id}" data-mode="new" ${
                   row.locationMode === "new" ? "checked" : ""
                 } /></span>
-                <span class="cell-value">${
+                <span class="cell-value filled-value">${
                   row.locationMode === "above"
                     ? escapeHtml(previousRow?.location.address || "")
                     : escapeHtml(row.location.address || "")
                 }</span>
-                ${
-                  row.locationMode === "new"
-                    ? `<button class="ghost-btn inline-btn" data-action="open-location" data-row-id="${row.id}">Set location</button>`
-                    : ""
-                }
               </div>`
         }
       </td>
-      <td>
+      <td style="width:12%;">
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="direct">
           <span class="cell-label">Enter Direct Beneficiaries</span>
-          <span class="cell-value">${escapeHtml(directSummary)}</span>
+          <span class="cell-value filled-value">${escapeHtml(directSummary)}</span>
         </button>
       </td>
-      <td>${renderUploadCell(row, "direct")}</td>
-      <td>
+      <td style="width:12%;">${renderUploadCell(row, "direct")}</td>
+      <td style="width:12%;">
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="indirect">
           <span class="cell-label">Enter Indirect Beneficiaries</span>
-          <span class="cell-value">${escapeHtml(indirectSummary)}</span>
+          <span class="cell-value filled-value">${escapeHtml(indirectSummary)}</span>
         </button>
       </td>
-      <td>${renderUploadCell(row, "indirect")}</td>
-      <td>
+      <td style="width:12%;">${renderUploadCell(row, "indirect")}</td>
+      <td style="width:12%;">
         <button class="cell-trigger" data-action="open-beneficiaries" data-row-id="${row.id}" data-group="other">
           <span class="cell-label">Enter Other Beneficiaries</span>
-          <span class="cell-value">${escapeHtml(otherSummary)}</span>
+          <span class="cell-value filled-value">${escapeHtml(otherSummary)}</span>
         </button>
       </td>
-      <td>${renderUploadCell(row, "other")}</td>
+      <td style="width:12%;">${renderUploadCell(row, "other")}</td>
     </tr>
   `;
 }
@@ -218,9 +278,9 @@ function renderUploadCell(row, groupKey) {
       ? "Upload Indirect Documentation"
       : "Upload Other Documentation";
   return `
-    <label class="cell-trigger" style="display:block;">
+    <label class="cell-trigger">
       <span class="cell-label">${title}</span>
-      <span class="cell-value">${escapeHtml(files.length ? files.join(", ") : "")}</span>
+      <span class="cell-value filled-value">${escapeHtml(files.length ? files.join(", ") : "")}</span>
       <input type="file" hidden multiple data-action="upload-files" data-row-id="${row.id}" data-group="${groupKey}" />
     </label>
   `;
@@ -291,32 +351,34 @@ function renderBeneficiaryModal() {
   const groupKey = state.activeModal.group;
   const label = groupKey.charAt(0).toUpperCase() + groupKey.slice(1);
   const category = row[groupKey];
+  const total = categoryTotal(category);
+  const hasError = hasNonNumeric(category.female) || hasNonNumeric(category.male);
   return `
     <div class="modal-shell">
       <div class="modal-card" data-modal-card="true" style="width:min(700px,88vw);">
         <div class="modal-header">
           <div>
             <h2>${label} Beneficiaries</h2>
-            <div class="subtle">Enter total, female, and male for this row.</div>
+            <div class="subtle">Enter Female and Male disaggregations</div>
           </div>
           <button class="ghost-btn" data-action="close-modal">Close</button>
         </div>
         <div class="bene-grid">
           <div class="field">
-            <label>Total</label>
-            <input type="number" value="${escapeHtml(category.total)}" data-action="modal-beneficiaries" data-row-id="${row.id}" data-group="${groupKey}" data-field="total" />
-          </div>
-          <div class="field">
             <label>Female</label>
-            <input type="number" value="${escapeHtml(category.female)}" data-action="modal-beneficiaries" data-row-id="${row.id}" data-group="${groupKey}" data-field="female" />
+            <input type="text" inputmode="numeric" value="${escapeHtml(category.female)}" data-action="modal-beneficiaries" data-row-id="${row.id}" data-group="${groupKey}" data-field="female" />
           </div>
           <div class="field">
             <label>Male</label>
-            <input type="number" value="${escapeHtml(category.male)}" data-action="modal-beneficiaries" data-row-id="${row.id}" data-group="${groupKey}" data-field="male" />
+            <input type="text" inputmode="numeric" value="${escapeHtml(category.male)}" data-action="modal-beneficiaries" data-row-id="${row.id}" data-group="${groupKey}" data-field="male" />
+          </div>
+          <div class="field total-readout">
+            <label>Total</label>
+            <div class="total-text">${escapeHtml(total)}</div>
           </div>
         </div>
         <div style="margin-top:14px;">
-          ${isCategoryValid(category) ? `<span class="status-ok">Valid: Female + Male matches Total.</span>` : `<span class="error-text">Female + Male must equal Total.</span>`}
+          ${hasError || state.numericError ? `<span class="error-text">numbers only</span>` : ""}
         </div>
       </div>
     </div>
@@ -424,6 +486,7 @@ function geocodeModalAddress(rowId) {
     } else {
       state.mapMessage = "Google could not place that address automatically. Click the map to pin it instead.";
     }
+    state.activeModal = null;
     render();
   });
 }
@@ -488,15 +551,15 @@ function buildCsv() {
     row.location.address,
     row.location.lat,
     row.location.lng,
-    row.direct.total,
+    categoryTotal(row.direct),
     row.direct.female,
     row.direct.male,
     row.direct.uploads.join(" | "),
-    row.indirect.total,
+    categoryTotal(row.indirect),
     row.indirect.female,
     row.indirect.male,
     row.indirect.uploads.join(" | "),
-    row.other.total,
+    categoryTotal(row.other),
     row.other.female,
     row.other.male,
     row.other.uploads.join(" | "),
@@ -509,7 +572,7 @@ function buildCsv() {
 
 function downloadCsv() {
   if (!allRowsValid()) {
-    window.alert("Each beneficiary total must equal Female + Male before export.");
+    window.alert("numbers only");
     return;
   }
   const csv = buildCsv();
@@ -542,12 +605,6 @@ function handleAction(event) {
     return;
   }
 
-  if (action === "add-row") {
-    state.rows.push(buildRow(state.rows.length + 1));
-    render();
-    return;
-  }
-
   if (action === "download-csv") {
     downloadCsv();
     return;
@@ -567,6 +624,7 @@ function handleAction(event) {
       rowId: target.dataset.rowId,
       group: target.dataset.group,
     };
+    state.numericError = "";
     render();
     return;
   }
@@ -574,6 +632,7 @@ function handleAction(event) {
   if (action === "close-modal") {
     state.activeModal = null;
     state.mapMessage = "";
+    state.numericError = "";
     render();
     return;
   }
@@ -581,6 +640,7 @@ function handleAction(event) {
   if (action === "set-location-mode") {
     const rowId = target.dataset.rowId;
     const rowNumber = Number(rowId.replace("row-", ""));
+    const shouldOpenLocation = target.checked && target.dataset.mode === "new";
     updateRow(rowId, (next) => {
       next.locationMode = target.checked ? target.dataset.mode : "";
       if (target.checked && target.dataset.mode === "above" && rowNumber > 1) {
@@ -589,6 +649,11 @@ function handleAction(event) {
       }
       return next;
     });
+    if (shouldOpenLocation) {
+      state.activeModal = { type: "location", rowId };
+      state.mapMessage = "";
+      state.mapDebug = "";
+    }
     render();
     return;
   }
@@ -601,6 +666,8 @@ function handleAction(event) {
       return next;
     });
     const row = getRow(rowId);
+    state.activeModal = null;
+    render();
     if (currentGeocoder && address) {
       geocodeModalAddress(rowId);
       return;
@@ -640,10 +707,17 @@ function handleInput(event) {
   }
 
   if (action === "modal-beneficiaries") {
+    if (target.value !== "" && !/^\d+$/.test(target.value)) {
+      state.numericError = "numbers only";
+      render();
+      return;
+    }
+    state.numericError = "";
     updateRow(target.dataset.rowId, (next) => {
       next[target.dataset.group][target.dataset.field] = target.value;
       return next;
     });
+    render();
     return;
   }
 }
